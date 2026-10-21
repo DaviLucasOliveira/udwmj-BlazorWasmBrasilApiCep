@@ -1,0 +1,113 @@
+﻿@page "/"
+@inject HttpClient Http
+@using BlazorWasmBrasilApiCep.Models
+@using System.Net.Http.Json
+
+<PageTitle>Consulta de CEP - BrasilAPI</PageTitle>
+
+<h1>Consulta de CEP</h1>
+<p>Digite um CEP para buscar os dados de endereço através da BrasilAPI.</p>
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <div class="input-group">
+            <input @bind="cepInput" class="form-control" placeholder="Digite apenas números (ex: 01001000)" maxlength="8" />
+            <button class="btn btn-primary" @onclick="ConsultarCep" disabled="@isLoading">
+                @if (isLoading)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    <span> Buscando...</span>
+                }
+                else
+                {
+                    <span>Pesquisar</span>
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(mensagemErro))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>Atenção:</strong> @mensagemErro
+        <button type="button" class="btn-close" @click="() => mensagemErro = null"></button>
+    </div>
+}
+
+@if (endereco != null)
+{
+    <div class="card shadow-sm mt-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Resultado da Consulta</h5>
+        </div>
+        <div class="card-body">
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item"><strong>CEP:</strong> @endereco.cep</li>
+                <li class="list-group-item"><strong>Logradouro:</strong> @endereco.street</li>
+                <li class="list-group-item"><strong>Bairro:</strong> @endereco.neighborhood</li>
+                <li class="list-group-item"><strong>Cidade:</strong> @endereco.city</li>
+                <li class="list-group-item"><strong>Estado:</strong> @endereco.state</li>
+                <li class="list-group-item"><strong>Serviço:</strong> @endereco.service</li>
+                @if (endereco.ibge != null)
+                {
+                    <li class="list-group-item"><strong>Código IBGE (Cidade):</strong> @endereco.ibge.city</li>
+                    <li class="list-group-item"><strong>IBGE (Estado):</strong> @endereco.ibge.state</li>
+                }
+            </ul>
+        </div>
+    </div>
+}
+
+@code {
+    private string cepInput = string.Empty;
+    private Root? endereco;
+    private string? mensagemErro;
+    private bool isLoading = false;
+
+    private async Task ConsultarCep()
+    {
+        // Limpa estados anteriores
+        mensagemErro = null;
+        endereco = null;
+
+        // Validação simples do formato do CEP (8 dígitos numéricos)
+        var cepLimpo = new string(cepInput.Where(char.IsDigit).ToArray());
+
+        if (cepLimpo.Length != 8)
+        {
+            mensagemErro = "Por favor, digite um CEP válido contendo 8 dígitos.";
+            return;
+        }
+
+        isLoading = true;
+
+        try
+        {
+            // URL da BrasilAPI
+            string url = $"https://brasilapi.com.br/api/cep/v1/{cepLimpo}";
+
+            // Realiza a requisição GET e desserializa automaticamente para o seu modelo Root
+            endereco = await Http.GetFromJsonAsync<Root>(url);
+        }
+        catch (HttpRequestException ex)
+        {
+            if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                mensagemErro = "CEP não encontrado na base de dados.";
+            }
+            else
+            {
+                mensagemErro = "Ocorreu um erro ao consultar o CEP. Verifique sua conexão.";
+            }
+        }
+        catch (Exception)
+        {
+            mensagemErro = "Ocorreu um erro inesperado.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
